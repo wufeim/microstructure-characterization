@@ -12,80 +12,38 @@ from keras.preprocessing.image import ImageDataGenerator
 data_dir = 'data'
 classes = ['DUM555', 'DUM560', 'DUM562', 'DUM587', 'DUM588']
 
-def get_model(input_shape, mode):
+# Return VGG-19 model
+def get_model(input_shape):
 
-    if mode == 'vgg19':
-        conv_base = VGG19(weights='imagenet', include_top=False, input_shape=input_shape)
-        # print(conv_base.summary())
-        set_trainable = False
-        for layer in conv_base.layers:
-            if layer.name == 'block5_conv1':
-                set_trainable = True
-            if set_trainable:
-                layer.trainable = True
-            else:
-                layer.trainable = False
-        m = models.Sequential()
-        m.add(conv_base)
-        m.add(layers.Flatten())
-        # m.add(layers.Dense(4096, activation='relu'))
-        m.add(layers.Dense(256, activation='relu'))
-        m.add(layers.Dense(5, activation='softmax'))
-        return m
-    elif mode == 'scratch-1':
-        m = models.Sequential()
-        # m.add(layers.BatchNormalization(axis=1))
-        m.add(layers.Conv2D(32, (3, 3), activation='relu', input_shape=input_shape))
-        m.add(layers.MaxPooling2D())
-        m.add(layers.BatchNormalization(axis=1))
-        m.add(layers.Conv2D(64, (3, 3), activation='relu'))
-        m.add(layers.MaxPooling2D())
-        m.add(layers.BatchNormalization(axis=1))
-        m.add(layers.Conv2D(128, (3, 3), activation='relu'))
-        m.add(layers.MaxPooling2D())
-        m.add(layers.BatchNormalization(axis=1))
-        m.add(layers.Conv2D(64, (3, 3), activation='relu'))
-        m.add(layers.GlobalAveragePooling2D())
-        m.add(layers.Dense(5, activation='softmax'))
-        return m
-    elif mode == 'scratch-2':
-        m = models.Sequential()
-        m.add(layers.Conv2D(32, (3, 3), activation='relu', input_shape=input_shape))
-        m.add(layers.Conv2D(64, (3, 3), activation='relu'))
-        m.add(layers.MaxPooling2D())
-        m.add(layers.Conv2D(128, (3, 3), activation='relu'))
-        m.add(layers.Conv2D(128, (3, 3), activation='relu'))
-        m.add(layers.MaxPooling2D())
-        m.add(layers.Conv2D(256, (3, 3), activation='relu'))
-        m.add(layers.Conv2D(256, (3, 3), activation='relu'))
-        m.add(layers.MaxPooling2D())
-        m.add(layers.Conv2D(512, (3, 3), activation='relu'))
-        m.add(layers.Conv2D(512, (3, 3), activation='relu'))
-        m.add(layers.MaxPooling2D())
-        m.add(layers.Conv2D(512, (3, 3), activation='relu'))
-        m.add(layers.Conv2D(512, (3, 3), activation='relu'))
-        m.add(layers.MaxPooling2D())
-        m.add(layers.Flatten())
-        # m.add(layers.Dense(4096, activation='relu'))
-        # m.add(layers.Dense(2048, activation='relu'))
-        m.add(layers.Dense(256, activation='relu'))
-        m.add(layers.Dense(5, activation='softmax'))
-        return m
-    else:
-        print('Unsupported mode.')
+    conv_base = VGG19(weights='imagenet', include_top=False, input_shape=input_shape)
+    # print(conv_base.summary())
+    set_trainable = False
+    for layer in conv_base.layers:
+        if layer.name == 'block5_conv1':
+            set_trainable = True
+        if set_trainable:
+            layer.trainable = True
+        else:
+            layer.trainable = False
+    m = models.Sequential()
+    m.add(conv_base)
+    m.add(layers.Flatten())
+    # m.add(layers.Dense(4096, activation='relu'))
+    m.add(layers.Dense(256, activation='relu'))
+    m.add(layers.Dense(5, activation='softmax'))
+    return m
 
+# Self-defined MAPE metrics
 import keras.backend as K
 def mof_mape(y_true, y_pred):
-    diff = K.abs((y_true - y_pred) / K.clip(K.abs(y_true),
-                                        1,
-                                        None))
+    diff = K.abs((y_true - y_pred) / K.clip(K.abs(y_true), 1, None))
     return 100. * K.mean(diff, axis=-1)
 
+# One step of k-fold validation
 def onefold(n):
     print('Training on fold: {} ...'.format(n))
-    model = get_model((240, 320, 3), mode='vgg19')
+    model = get_model((240, 320, 3))
     model.compile(loss='categorical_crossentropy', optimizer=optimizers.Adam(lr=5e-6), metrics=['acc', mof_mape, 'mse'])
-    # model.compile(loss='categorical_crossentropy', optimizer=optimizers.RMSprop(lr=2e-5, decay=1.3e-7, epsilon=1e-10), metrics=['acc', 'mape', 'mse'])
     train_datagen = ImageDataGenerator(rescale=1/255.,
                                        horizontal_flip=True,
                                        vertical_flip=True,
@@ -134,6 +92,7 @@ def onefold(n):
     plt.show()
     return history
 
+# Preprocess images: crop info bars and resize images
 def crop_n_resize(f):
 
     img = cv2.imread(f)
@@ -154,6 +113,7 @@ def crop_n_resize(f):
     else:
         raise Exception('Image of unsupported shape fed.')
 
+# Preprocess images and get ready for ImageGenerator
 def copy_file_with_preprocess(filename, src_path, dst_path):
 
     imgs = crop_n_resize(os.path.join(src_path, filename))
@@ -162,6 +122,7 @@ def copy_file_with_preprocess(filename, src_path, dst_path):
     for i in range(len(imgs)):
         cv2.imwrite(os.path.join(dst_path, filename[:-4] + '_' + str(i) + '.tif'), imgs[i])
 
+# k-fold validation
 import random
 def kfold(k=5):
     from shutil import copyfile, rmtree
@@ -208,6 +169,7 @@ history = kfold()
 print('\n----------------\n')
 print('Done. Time elapsed: {:.2f} minutes.'.format((time.time() - start_time) / 60))
 
+# Plot accuracy and loss plots
 acc = history.history['acc']
 val_acc = history.history['val_acc']
 loss = history.history['loss']
@@ -224,6 +186,7 @@ plt.title('Training and validation loss')
 plt.legend()
 plt.show()
 
+# Plot MAPE and MSE plots
 mape = history.history['mof_mape']
 val_mape = history.history['val_mof_mape']
 mse = history.history['mean_squared_error']

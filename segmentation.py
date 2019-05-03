@@ -20,16 +20,16 @@ test_dir = os.path.join(data_dir, 'test')
 
 classes = ['DUM555', 'DUM560', 'DUM562', 'DUM587', 'DUM588']
 
+# Image preprocessing: filters
 from scipy.ndimage.filters import median_filter, gaussian_filter
-
 def filters(img, median_filter_size=(5, 5, 1), gaussian_sigma=4):
 
     median_filted = median_filter(img, size=median_filter_size)
     gaussian_filted = gaussian_filter(median_filted, sigma=gaussian_sigma)
     return cv2.cvtColor(gaussian_filted, cv2.COLOR_BGR2GRAY)
 
+# Extract mahotas features
 import mahotas.features
-
 def haralick_features(names, distance=1):
     f = []
     for i in range(len(names)):
@@ -50,8 +50,8 @@ def haralick_features(names, distance=1):
             f = np.vstack((f, h))
     return f
 
+# Extract LBP features
 from skimage.feature import local_binary_pattern
-
 def lbp_features(names, P=10, R=5):
     f = []
     for i in range(len(names)):
@@ -72,6 +72,7 @@ def lbp_features(names, P=10, R=5):
             f = np.vstack((f, h))
     return f
 
+# Test feature extraction process
 haralick = []
 lbp = []
 Y = []
@@ -83,6 +84,7 @@ assert(haralick.shape == (13, 13))
 assert(lbp.shape == (13,12))
 assert(len(Y) == 13)
 
+# Extract features from all images
 haralick = []
 lbp = []
 Y = []
@@ -96,12 +98,11 @@ for i in range(len(classes)):
         lbp = np.vstack((lbp, lbp_features(names)))
     Y += [i] * len(names)
 Y = np.asarray(Y)
-
 allfeatures = np.column_stack((haralick, lbp))
 
+# Training kMeans model
 from sklearn.model_selection import StratifiedKFold
 from sklearn.ensemble import RandomForestClassifier
-
 import warnings; warnings.simplefilter('ignore')
 
 skf = StratifiedKFold(n_splits=5)
@@ -173,8 +174,8 @@ for train_index, test_index in skf.split(np.zeros((len(Y), 1)), Y):
         print()
     break
 
+# Segmentation using kMeans
 clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-
 def kmeans_segmentation(c, f, k=15, pivot=40, verbose=True):
     name = [os.path.join(data_dir, c, f)]
     haralick = haralick_features(name)
@@ -264,6 +265,7 @@ def kmeans_segmentation(c, f, k=15, pivot=40, verbose=True):
 # Display segmentation results
 kmeans_segmentation('DUM562', 'DUM562_017.tif')
 
+# Extract segmentation features and test segmentation accuracy using 5-class classification
 def get_xny():
     f = []
     Y = []
@@ -286,7 +288,6 @@ X, Y = get_xny()
 
 from sklearn.model_selection import StratifiedKFold
 from sklearn.ensemble import RandomForestClassifier
-
 import warnings; warnings.simplefilter('ignore')
 
 skf = StratifiedKFold(n_splits=5)
